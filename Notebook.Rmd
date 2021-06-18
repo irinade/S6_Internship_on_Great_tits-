@@ -1,0 +1,148 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This first chunk of code is to be run two times!
+```{r}
+### instal packages
+library(tuneR)
+library(ggplot2)
+library(ggpubr)
+library(stats)
+library(tidyverse)
+
+### import data set
+data <- read.csv("~/Documents/Stage/Biard/Irina.csv")
+
+#body mass of female tits
+bm <- data$Pds
+
+#carotenoid chroma of female tits 
+col <- data$mCarotChroma
+
+#body mass and color of female tits in urban habitat
+dataU <- data %>% filter(Habitat == "U")
+bmU <- dataU$Pds
+colU <- dataU$mCarotChroma
+
+#body mass and color of female tits in rural habitat
+dataR <- data %>% filter(Habitat == "R")
+bmR <- dataR$Pds
+colR <- dataR$mCarotChroma
+
+```
+
+I am going to test habitat effect on female tits body mass and color! To do that, I will use a T test to compare female body mass in rural an urban habitats, and female color in rural and urban habitats. To perform a T test, we need the two groups of samples to be normally distributed and to have equal variances.
+
+A Shapiro test (or a graphical analysis) is used to test the normality of two groups of samples.
+A F test is used to compare the homogeneity of variances. Depending on the homogeneity of variances, the T test that will follow will not be the same.
+
+First, lets test the normality of female tits color and body mass!
+```{r}
+### does body mass and coloration follows a normal law?
+# test shapiro body mass
+shapiro.test(bm)
+# graphical test body mass
+qqnorm(bm,datax=TRUE)
+qqline(bm,datax=TRUE)+title(sub="Testing Normality of Body Mass by Graph")
+
+# test shapiro coloration
+shapiro.test(col)
+# graphical test coloration
+qqnorm(col,datax=TRUE)
+qqline(col,datax=TRUE)+title(sub="Testing Normality of Coloration by Graph")
+```
+From the output obtained using the Shapiro test, we can assume normality for the coloration but not from the body mass. The p-value of color dataset is greater than 0.05. Hence, the distribution of the given data is not different from normal distribution significantly. The p-value of body mass dataset is lower than 0.05. Hence, the distribution of the given data is different from normal distribution significantly.
+
+However, this was expected because of the large dataset I am working on. Testing graphically the normality of color and body mass will give a less strict approximation of normality.
+Graphically, we can assess that both the color and body mass dataset follow a normal distribution because the observed quantiles of the two distributions are well aligned with the theoretical quantiles of the normal law.
+
+Because my data on color and body mass follows a normal distribution, I will look for a correlation between female tits body mass and color. I am using a Pearson correlation which measures a linear dependence between two variables (col and bm). It is a parametric correlation test because it depends on the distribution of the data of the variables, which needs to follow a normal distribution. 
+
+```{r}
+### Is there a correlation between female tits body mass and coloration?
+cor.test(col, bm, method=c("pearson"))
+```
+Here we see that the p-value is approximately 0.48 which is here considered equal to 0.5 (5%), then the correlation between color and body mass is non significant. t value, which gives the difference between the two means, is close to zero. 
+
+
+Second, lets test the homogeneity of variances for both female tits body mass in rural an urban habitats, and female tits color in rural and urban habitats!
+```{r}
+var.test(bmU, bmR)
+var.test(colU, colR)
+```
+P-value for F test of female tits body mass in urban and rural habitat is approximately 0.69 (>0.05). And p-value for F test of female tits carotenoid chroma in urban and rural habitat is approximately 0.23 (>0.05). So there is no significative difference between the variances of body mass and carotenoid chroma in urban and rural habitat. Consequently, we can use T test and suppose variances equality for both body mass and color.
+
+```{r}
+BM<-t.test(bmU, bmR, var.equal=TRUE)
+BM
+
+COL<-t.test(colU, colR, var.equal=TRUE)
+COL
+```
+P-value for T test of female tits body mass in urban and rural habitat is approximately 0 which is much less than 0.05. We conclude that the mean body mass of female tits in urban habitat is significantly different from that of rural habitat. Because the difference between urban body mass and rural body mass is negative (t<0), we can conclude that the mean body mass of female tits in rural habitat is heavier than in urban habitat.
+And p-value for T test of female tits carotenoid chroma in urban and rural habitat is approximately 0.05. So the mean carotenoid chroma of female tits in urban habitat is significantly no different from that of rural habitat. 
+
+```{r}
+boxplot(data$Pds ~ data$Habitat, main = "Repartition of female Great tits Body Mass \n in Urban and Rural habitat", xlab = "Habitat (R for rural and U for urban)", ylab = "Body Mass (grams)")
+```
+This boxplot illustrates what the T test showed, that rural female great tits have on average a higher body mass value than urban ones.
+
+So habitat influences mass, but not color, and there is no correlation between body mass and color.
+
+Now, I will use a generalized linear model following a poisson regression.
+```{r}
+# Poisson Regression 
+glmRS <- glm(nPenv ~ Pds, data=dataU, family=poisson()) 
+summary(glmRS)
+
+glmRS <- glm(nPenv ~ Pds, data=dataR, family=poisson()) 
+summary(glmRS)
+
+glmRS <- glm(nPenv ~ Habitat + mCarotChroma + Habitat:mCarotChroma, data=data, family=poisson()) 
+summary(glmRS)
+```
+Interpretation of results:
+
+Based on previous results, we have two model to test. First, we hypothesize that body mass of female tits explains reproductive success in urban and rural habitat. Second, we hypothesize that habitat, carotenoid chroma and the interaction of habitat on carotenoid chroma explains reproductive success. 
+
+Two coefficient are of interest to analyze our result, the z-score and the p-value.
+The z-score value inform on the standard deviations distance from the mean. If a z-score is equal to 0, it is on the mean. If a z-score is positive, the raw score is higher than the mean average, and vice versa.
+The p-value inform on the statistical significance of the result. If the p-value is small, the hypothesis should be rejected. A p-value less than 0.05 (typically ≤ 0.05) is statistically significant.
+
+To verify the hypothesis that body mass of female tits explains reproductive success in urban habitat, we need to look at the resulting coefficient (z = -0.28 ; p-value = 0.77 > 0.05 ; degrees of freedom of residual deviance = 114). P-value of the generalized linear model testing the hypothesis that body mass of female tits explains reproductive success in urban habitat is larger than 0.05, meaning that the relation is not statistically significant.
+In rural habitat we observe a similar result (z = -1.09 ; p-value = 0.27 > 0.05 ; degrees of freedom of residual deviance = 311) with a p-value significantly larger than 0.05.
+So reproductive success is not explained by female body mass in either urban or rural habitats. 
+
+To verify the second hypothesis assessing that habitat, carotenoid chroma and the interaction of habitat on carotenoid chroma explains reproductive success, we need to take a look at the coeffiecient of each of these variables independently. First, let us start with the interaction effect of habitat on carotenoid chroma (z = -1.68 ; p-value = 0.09 > 0.05 ; degrees of freedom of residual deviance = 424). We observe that the p-value is slightly bigger than 0.05, so the interaction of habitat on carotenoid chroma to explain reproductive success is not statistically significant. So we can remove this interaction from our model and run it back again.
+
+```{r}
+# Poisson Regression 
+glmRS <- glm(nPenv ~ Habitat + mCarotChroma , data=data, family=poisson()) 
+summary(glmRS)
+```
+Now let us look at carotenoid chroma (z = 0.304 ; p-value = 0.76 > 0.05 ; degrees of freedom of residual deviance = 425). We observe that the p-value is significantly larger than 0.05, so carotenoid chroma does not explain reproductive success in a statistically significant way. So we can remove this interaction from our model and run it back again.
+
+```{r}
+# Poisson Regression 
+glmRS <- glm(nPenv ~ Habitat , data=data, family=poisson()) 
+summary(glmRS)
+```
+Now let us look at habitat (z = -4.38 ; p-value = 1.17e-05 < 0.05 ; degrees of freedom of residual deviance = 427). We observe that the p-value is significantly smaller than 0.05, so habitat explains reproductive success in a statistically significant way. 
+
+
+
+
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
